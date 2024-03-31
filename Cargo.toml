@@ -1,0 +1,20 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+limine = "0.2.0"
+spin = { version = "0.9.8" }
+uart_16550 = "0.3.0"
+volatile = "0.2.7"
+x86_64 = "0.15.1"

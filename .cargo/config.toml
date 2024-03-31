@@ -1,0 +1,10 @@
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[build]
+rustflags = ["-Cforce-frame-pointers=yes"]
+target = "./.cargo/kernel.json"
+
+[target.kernel]
+runner = ".cargo/runner.sh"
