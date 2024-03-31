@@ -2,7 +2,7 @@
 #![no_main]
 
 mod arch;
-mod serial;
+mod io;
 
 use core::panic::PanicInfo;
 
