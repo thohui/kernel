@@ -1,6 +1,5 @@
 use lazy_static::lazy_static;
 use x86_64::{
-    instructions::tables::lgdt,
     registers::segmentation::{Segment, CS, DS},
     structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
 };

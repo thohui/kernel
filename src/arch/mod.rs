@@ -5,21 +5,27 @@ use limine::{
         BootloaderInfoRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, StackSizeRequest,
     },
 };
-
-pub mod gdt;
-
 use spin::Once;
 
-use crate::arch::gdt::init_gdt;
+pub mod gdt;
+pub mod idt;
+
+use crate::{arch::gdt::init_gdt, display::Display, sync::spinlock::SpinLock};
+
+use self::idt::init_idt;
 
 pub static PHYSICAL_OFFSET: Once<usize> = Once::new();
+pub static DISPLAY: Once<SpinLock<Display>> = Once::new();
 
 pub fn init_kernel() {
+    init_gdt();
+    init_idt();
+
     let limine_data = init_limine();
 
     PHYSICAL_OFFSET.call_once(|| limine_data.physical_offset);
 
-    init_gdt();
+    DISPLAY.call_once(|| SpinLock::new(Display::new(limine_data.framebuffer)));
 }
 
 static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(4096);

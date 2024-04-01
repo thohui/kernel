@@ -1,7 +1,8 @@
 use lazy_static::lazy_static;
-use spin::Mutex;
 use uart_16550::SerialPort;
 use x86_64::instructions::interrupts;
+
+use crate::sync::spinlock::SpinLock;
 
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
@@ -31,9 +32,9 @@ macro_rules! serial_println {
 }
 
 lazy_static! {
-    pub static ref COM1: Mutex<SerialPort> = {
+    pub static ref COM1: SpinLock<SerialPort> = {
         let mut serial_port = unsafe { SerialPort::new(0x3F8) };
         serial_port.init();
-        Mutex::new(serial_port)
+        SpinLock::new(serial_port)
     };
 }
