@@ -20,7 +20,7 @@ unsafe impl<T> Send for SpinLock<T> {}
 
 impl<T> SpinLock<T> {
     /// Initializes a SpinLock.
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         SpinLock {
             lock: AtomicBool::new(false),
             value: UnsafeCell::new(value),

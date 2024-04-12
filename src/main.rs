@@ -1,18 +1,24 @@
 #![no_std]
 #![no_main]
+#![feature(abi_x86_interrupt)]
 
 mod arch;
 mod display;
 mod io;
+mod memory;
+mod paging;
 mod sync;
 
-use core::panic::PanicInfo;
+use core::{arch::asm, panic::PanicInfo};
 
+use alloc::vec;
 use arch::init_kernel;
 use display::font::FONT;
 use x86_64::instructions::hlt;
 
-use crate::{arch::DISPLAY, display::Color};
+use crate::display::{Color, DISPLAY};
+
+extern crate alloc;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {

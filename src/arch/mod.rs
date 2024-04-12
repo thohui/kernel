@@ -1,3 +1,6 @@
+use core::ops::{Add, DerefMut};
+
+use ::alloc::vec;
 use limine::{
     framebuffer::Framebuffer,
     memory_map::Entry,
@@ -5,27 +8,47 @@ use limine::{
         BootloaderInfoRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, StackSizeRequest,
     },
 };
-use spin::Once;
+
+use crate::{
+    display::init_display,
+    memory::heap::init_heap,
+    paging::{
+        frame::{init_allocator, stringify_entry_type, FRAME_ALLOCATOR},
+        mapper::{init_mapper, PAGE_MAPPER},
+    },
+};
 
 pub mod gdt;
 pub mod idt;
 
-use crate::{arch::gdt::init_gdt, display::Display, sync::spinlock::SpinLock};
+use crate::{arch::gdt::init_gdt, serial_println};
 
 use self::idt::init_idt;
 
-pub static PHYSICAL_OFFSET: Once<usize> = Once::new();
-pub static DISPLAY: Once<SpinLock<Display>> = Once::new();
-
 pub fn init_kernel() {
-    init_gdt();
-    init_idt();
-
     let limine_data = init_limine();
 
-    PHYSICAL_OFFSET.call_once(|| limine_data.physical_offset);
+    init_gdt();
+    init_idt();
+    init_allocator(limine_data.memory_map);
+    init_mapper(limine_data.physical_offset as u64);
 
-    DISPLAY.call_once(|| SpinLock::new(Display::new(limine_data.framebuffer)));
+    let mut mapper = PAGE_MAPPER.get().unwrap().lock();
+    let mut allocator = FRAME_ALLOCATOR.get().unwrap().lock();
+
+    init_heap(mapper.deref_mut(), allocator.deref_mut());
+
+    init_display(limine_data.framebuffer);
+
+    for entry in limine_data.memory_map {
+        let entry_type = stringify_entry_type(entry.entry_type);
+        serial_println!(
+            "{} from 0x{:X} to 0x{:X}",
+            entry_type,
+            entry.base,
+            entry.base.add(entry.length)
+        );
+    }
 }
 
 static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(4096);
