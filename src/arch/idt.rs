@@ -12,6 +12,9 @@ lazy_static! {
         let mut idt = InterruptDescriptorTable::new();
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt.breakpoint.set_handler_fn(breakpoint_handler);
+        idt.general_protection_fault
+            .set_handler_fn(general_protection_fault_handler);
+        idt.double_fault.set_handler_fn(double_fault_handler);
         idt
     };
 }
@@ -21,7 +24,21 @@ pub fn init_idt() {
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    serial_println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+    serial_println!("BREAKPOINT\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, _: u64) -> ! {
+    serial_println!("DOUBLE FAULT: \n{:#?}", stack_frame);
+    loop {
+        hlt();
+    }
+}
+
+extern "x86-interrupt" fn general_protection_fault_handler(
+    stack_frame: InterruptStackFrame,
+    _: u64,
+) {
+    serial_println!("GENERAL PROTECTION FAULT: \n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(
