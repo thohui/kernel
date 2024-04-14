@@ -1,19 +1,21 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(exposed_provenance)]
 
+mod acpi;
 mod arch;
 mod display;
 mod io;
 mod memory;
+mod net;
 mod paging;
+mod pci;
 mod sync;
 
-use core::{arch::asm, panic::PanicInfo};
+use core::panic::PanicInfo;
 
-use alloc::vec;
 use arch::init_kernel;
-use display::font::FONT;
 use x86_64::instructions::hlt;
 
 use crate::display::{Color, DISPLAY};
@@ -30,12 +32,6 @@ pub extern "C" fn _start() -> ! {
         for x in 0..display.width {
             display.draw_pixel(x, y, Color::new(20, 223, 229));
         }
-    }
-
-    let text = "hello world";
-    for (idx, char) in text.chars().enumerate() {
-        let x = FONT.glyph_size().0.checked_mul(idx as u64).unwrap_or(0);
-        display.draw_character(x, 0, char);
     }
 
     loop {

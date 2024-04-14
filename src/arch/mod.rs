@@ -1,11 +1,11 @@
-use core::ops::{Add, DerefMut};
+use core::ops::DerefMut;
 
-use ::alloc::vec;
 use limine::{
     framebuffer::Framebuffer,
     memory_map::Entry,
     request::{
-        BootloaderInfoRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, StackSizeRequest,
+        BootloaderInfoRequest, FramebufferRequest, HhdmRequest, MemoryMapRequest, RsdpRequest,
+        StackSizeRequest,
     },
 };
 
@@ -13,15 +13,16 @@ use crate::{
     display::init_display,
     memory::heap::init_heap,
     paging::{
-        frame::{init_allocator, stringify_entry_type, FRAME_ALLOCATOR},
+        frame::{init_allocator, FRAME_ALLOCATOR},
         mapper::{init_mapper, PAGE_MAPPER},
     },
+    pci::init_pci,
 };
 
 pub mod gdt;
 pub mod idt;
 
-use crate::{arch::gdt::init_gdt, serial_println};
+use crate::arch::gdt::init_gdt;
 
 use self::idt::init_idt;
 
@@ -38,17 +39,9 @@ pub fn init_kernel() {
 
     init_heap(mapper.deref_mut(), allocator.deref_mut());
 
-    init_display(limine_data.framebuffer);
+    init_pci();
 
-    for entry in limine_data.memory_map {
-        let entry_type = stringify_entry_type(entry.entry_type);
-        serial_println!(
-            "{} from 0x{:X} to 0x{:X}",
-            entry_type,
-            entry.base,
-            entry.base.add(entry.length)
-        );
-    }
+    init_display(limine_data.framebuffer);
 }
 
 static STACK_SIZE_REQUEST: StackSizeRequest = StackSizeRequest::new().with_size(4096);
@@ -56,16 +49,18 @@ static BOOTLOADER_INFO: BootloaderInfoRequest = BootloaderInfoRequest::new();
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
+static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
 
 struct LimineData<'a> {
     physical_offset: usize,
     framebuffer: Framebuffer<'a>,
     memory_map: &'a [&'a Entry],
+    rsdp_address: *const u8,
 }
 
 fn init_limine() -> LimineData<'static> {
-    let _ = BOOTLOADER_INFO.get_response().unwrap();
-    let _ = STACK_SIZE_REQUEST.get_response().unwrap();
+    _ = BOOTLOADER_INFO.get_response().unwrap();
+    _ = STACK_SIZE_REQUEST.get_response().unwrap();
 
     let hhdm_response = HHDM_REQUEST.get_response().unwrap();
     let physical_offset = hhdm_response.offset() as usize;
@@ -76,9 +71,12 @@ fn init_limine() -> LimineData<'static> {
     let framebuffer_response = FRAMEBUFFER_REQUEST.get_response().unwrap();
     let framebuffer = framebuffer_response.framebuffers().next().unwrap();
 
+    let rsdp_response = RSDP_REQUEST.get_response().unwrap();
+
     LimineData {
         physical_offset,
         memory_map,
         framebuffer,
+        rsdp_address: rsdp_response.address() as *const u8,
     }
 }

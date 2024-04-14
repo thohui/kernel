@@ -8,7 +8,7 @@ use x86_64::{
 use crate::sync::spinlock::SpinLock;
 
 #[global_allocator]
-// TODO: implement a proper allocator that support deallocating memory.
+// TODO: implement a proper allocator that supports deallocating memory.
 static ALLOCATOR: SpinLock<BumpAllocator> = SpinLock::new(BumpAllocator::new_empty());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;

@@ -30,11 +30,11 @@ checksum = "cf4b9d6a944f767f8e5e0db018570623c85f3d925ac718db4e06d0187adb21c1"
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "bit_field",
  "lazy_static",
  "limine",
  "spin 0.9.8",
  "uart_16550",
- "x86",
  "x86_64",
 ]
 
