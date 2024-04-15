@@ -40,3 +40,12 @@ qemu-system-x86_64 \
     -serial stdio \
     -net tap,ifname=tap0,script=no,downscript=no -device rtl8139\
     "$KERNEL".iso
+
+# Uncomment for debugging
+# qemu-system-x86_64 \
+#     -machine q35 -cpu qemu64 -M smm=off\
+#     -S -s \
+#     -D target/log.txt -d int,guest_errors\
+#     -serial stdio \
+#     -net tap,ifname=tap0,script=no,downscript=no -device rtl8139\
+#     "$KERNEL".iso
