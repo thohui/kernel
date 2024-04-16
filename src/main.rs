@@ -3,12 +3,10 @@
 #![feature(abi_x86_interrupt)]
 #![feature(exposed_provenance)]
 
-mod acpi;
 mod arch;
 mod display;
 mod io;
 mod memory;
-mod net;
 mod paging;
 mod pci;
 mod sync;
@@ -16,17 +14,19 @@ mod sync;
 use core::panic::PanicInfo;
 
 use arch::init_kernel;
+use display::get_display;
 use x86_64::instructions::hlt;
 
-use crate::display::{Color, DISPLAY};
+use crate::display::Color;
 
 extern crate alloc;
 
 #[no_mangle]
+
 pub extern "C" fn _start() -> ! {
     init_kernel();
 
-    let mut display = DISPLAY.get().unwrap().lock();
+    let mut display = get_display();
 
     for y in 0..display.height {
         for x in 0..display.width {

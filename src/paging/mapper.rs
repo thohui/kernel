@@ -5,9 +5,14 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use crate::sync::spinlock::SpinLock;
+use crate::sync::spinlock::{SpinLock, SpinLockGuard};
 
-pub static PAGE_MAPPER: Once<SpinLock<OffsetPageTable>> = Once::new();
+static PAGE_MAPPER: Once<SpinLock<OffsetPageTable>> = Once::new();
+
+pub fn get_page_mapper<'a>() -> SpinLockGuard<'a, OffsetPageTable<'static>> {
+    PAGE_MAPPER.get().unwrap().lock()
+}
+
 static PHYSICAL_OFFSET: Once<u64> = Once::new();
 
 pub fn init_mapper(offset: u64) {

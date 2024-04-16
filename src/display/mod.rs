@@ -1,18 +1,26 @@
-use core::{ops::DerefMut, slice::from_raw_parts_mut};
+use core::{
+    ops::{Deref, DerefMut},
+    slice::from_raw_parts_mut,
+};
 
 use limine::framebuffer::{self, Framebuffer};
-use spin::{lock_api, Once};
+use spin::Once;
 
-use crate::sync::spinlock::SpinLock;
+use crate::sync::spinlock::{SpinLock, SpinLockGuard};
 
 use self::font::FONT;
 
 pub mod font;
 
-pub static DISPLAY: Once<SpinLock<Display>> = Once::new();
+static DISPLAY: Once<SpinLock<Display<'static>>> = Once::new();
+
+pub fn get_display<'a>() -> SpinLockGuard<'a, Display<'static>> {
+    DISPLAY.get().unwrap().lock()
+}
 
 pub fn init_display(framebuffer: Framebuffer<'static>) {
-    DISPLAY.call_once(|| SpinLock::new(Display::new(framebuffer)));
+    let display: Display = Display::new(framebuffer);
+    DISPLAY.call_once(|| SpinLock::new(display));
 }
 
 pub struct Display<'a> {
@@ -38,8 +46,8 @@ impl AsRef<[u8; 4]> for Color {
     }
 }
 
-impl Display<'_> {
-    pub fn new<'a>(framebuffer: Framebuffer<'a>) -> Display<'a> {
+impl<'a> Display<'a> {
+    pub fn new(framebuffer: Framebuffer<'a>) -> Display<'a> {
         let total_space = (framebuffer.pitch() * framebuffer.height()) as usize;
         let data = unsafe { from_raw_parts_mut(framebuffer.addr(), total_space) };
         Display {

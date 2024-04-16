@@ -2,14 +2,14 @@ use bit_field::BitField;
 use spin::Once;
 use x86_64::instructions::port::Port;
 
-use crate::serial_println;
+use crate::{serial_println, sync::spinlock::SpinLock};
 
-pub static mut PCI: Once<Pci> = Once::new();
+static PCI: Once<SpinLock<Pci>> = Once::new();
 
 pub fn init_pci() {
     let pci = Pci::new();
-    unsafe { PCI.call_once(|| pci) };
-    unsafe { PCI.get_mut().unwrap().scan_bus(0) }
+    PCI.call_once(|| SpinLock::new(pci));
+    PCI.get().unwrap().lock().scan_bus(0);
 }
 
 #[allow(dead_code)]

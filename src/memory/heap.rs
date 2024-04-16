@@ -5,7 +5,7 @@ use x86_64::{
     VirtAddr,
 };
 
-use crate::sync::spinlock::SpinLock;
+use crate::{serial_println, sync::spinlock::SpinLock};
 
 #[global_allocator]
 // TODO: implement a proper allocator that supports deallocating memory.
@@ -27,6 +27,7 @@ pub fn init_heap(
 
     for page in page_range {
         let frame = frame_allocator.allocate_frame().unwrap();
+        serial_println!("allocated frame at: {:?}", frame.start_address());
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe {
             mapper

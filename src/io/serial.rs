@@ -1,6 +1,8 @@
+use core::fmt::Write;
+
 use lazy_static::lazy_static;
 use uart_16550::SerialPort;
-use x86_64::instructions::interrupts;
+use x86_64::instructions::{interrupts, port::Port};
 
 use crate::sync::spinlock::SpinLock;
 
@@ -18,7 +20,7 @@ pub fn _print(args: ::core::fmt::Arguments) {
 #[macro_export]
 macro_rules! serial_print {
     ($($arg:tt)*) => {
-        $crate::io::serial::_print(format_args!($($arg)*));
+        $crate::io::serial::_print(format_args!($($arg)*))
     };
 }
 

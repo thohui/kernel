@@ -8,7 +8,7 @@ use x86_64::{
     PhysAddr,
 };
 
-use crate::sync::spinlock::SpinLock;
+use crate::sync::spinlock::{SpinLock, SpinLockGuard};
 
 pub const FRAME_SIZE: usize = 4096;
 const MAX_BITMAP_ENTRIES: usize = 50000;
@@ -16,7 +16,11 @@ const MAX_PHYSICAL_ADDRESS: usize = FRAME_SIZE * MAX_BITMAP_ENTRIES;
 
 static mut BITMAP: [u8; MAX_BITMAP_ENTRIES] = [0; MAX_BITMAP_ENTRIES];
 
-pub static FRAME_ALLOCATOR: Once<SpinLock<BitMapFrameAllocator<'static>>> = Once::new();
+static FRAME_ALLOCATOR: Once<SpinLock<BitMapFrameAllocator<'static>>> = Once::new();
+
+pub fn get_frame_allocator<'a>() -> SpinLockGuard<'a, BitMapFrameAllocator<'static>> {
+    FRAME_ALLOCATOR.get().unwrap().lock()
+}
 
 pub fn init_allocator(memory_map: &'static [&'static limine::memory_map::Entry]) {
     FRAME_ALLOCATOR.call_once(|| SpinLock::new(BitMapFrameAllocator::new(memory_map)));

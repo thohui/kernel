@@ -13,8 +13,8 @@ use crate::{
     display::init_display,
     memory::heap::init_heap,
     paging::{
-        frame::{init_allocator, FRAME_ALLOCATOR},
-        mapper::{init_mapper, PAGE_MAPPER},
+        frame::{get_frame_allocator, init_allocator},
+        mapper::{get_page_mapper, init_mapper},
     },
     pci::init_pci,
 };
@@ -26,7 +26,8 @@ use crate::arch::gdt::init_gdt;
 
 use self::idt::init_idt;
 
-pub fn init_kernel() {
+#[no_mangle]
+pub extern "C" fn init_kernel() {
     let limine_data = init_limine();
 
     init_gdt();
@@ -34,10 +35,10 @@ pub fn init_kernel() {
     init_allocator(limine_data.memory_map);
     init_mapper(limine_data.physical_offset as u64);
 
-    let mut mapper = PAGE_MAPPER.get().unwrap().lock();
-    let mut allocator = FRAME_ALLOCATOR.get().unwrap().lock();
-
-    init_heap(mapper.deref_mut(), allocator.deref_mut());
+    init_heap(
+        get_page_mapper().deref_mut(),
+        get_frame_allocator().deref_mut(),
+    );
 
     init_pci();
 
