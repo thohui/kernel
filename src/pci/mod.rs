@@ -1,19 +1,25 @@
-use bit_field::BitField;
 use spin::Once;
 use x86_64::instructions::port::Port;
 
-use crate::{serial_println, sync::spinlock::SpinLock};
+use crate::sync::spinlock::{SpinLock, SpinLockGuard};
+
+// Reference: https://wiki.osdev.org/PCI
 
 static PCI: Once<SpinLock<Pci>> = Once::new();
 
+pub fn get_pci<'a>() -> SpinLockGuard<'a, Pci> {
+    PCI.get().unwrap().lock()
+}
+
+/// Initializes the PCI instance. This can only be called once.
 pub fn init_pci() {
     let pci = Pci::new();
     PCI.call_once(|| SpinLock::new(pci));
-    PCI.get().unwrap().lock().scan_bus(0);
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Pci header.
 pub struct PciHeader {
     vendor_id: u16,
     device_id: u16,
@@ -29,30 +35,16 @@ pub struct PciHeader {
     bist: u8,
 }
 
-#[allow(dead_code)]
-impl PciHeader {
-    pub fn has_multiple_fns(&self) -> bool {
-        self.header_type.get_bit(7)
-    }
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// PCI device
+pub enum PciDevice {
+    General(GeneralDevice),
+    PciPciBridge(PciHeader),
+    PciCardbusBridge(PciHeader),
+    Unknown(PciHeader),
 }
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum ConversionError {
-    UnknownHeaderType,
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum ConvertedDevice {
-    // TODO: expand on this.
-    General,
-    PciPciBridge,
-    PciCardbusBridge,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// General PCI device.
 pub struct GeneralDevice {
     pub header: PciHeader,
     pub bar0: u32,
@@ -65,17 +57,19 @@ pub struct GeneralDevice {
     pub subsystem_vendor_id: u16,
     pub subsystem_device_id: u16,
     pub expansion_rom_address: u32,
-    pub capabilities: u8,
-    pub reserved: [u8; 7],
+    pub capabilities_pointer: u8,
     pub interrupt_line: u8,
     pub interrupt_pin: u8,
     pub min_grant: u8,
     pub max_latency: u8,
 }
 
+/// Address used for selecting a pci device.
 const CONFIG_ADDRESS: u16 = 0xCF8;
+/// Address used for reading a pci device config.
 const CONFIG_DATA: u16 = 0xCFC;
 
+/// Provides functionality for interacting with PCI devices.
 pub struct Pci {
     command_port: Port<u32>,
     data_port: Port<u32>,
@@ -87,11 +81,17 @@ pub enum PciError {
 }
 
 impl Pci {
-    pub fn new() -> Pci {
+    /// Creates a new of the Pci struct.
+    fn new() -> Pci {
         Pci {
             command_port: Port::new(CONFIG_ADDRESS),
             data_port: Port::new(CONFIG_DATA),
         }
+    }
+
+    /// Returns a bus iterator for the provided bus id.
+    pub fn bus_iterator(&mut self) -> PciBusIterator {
+        PciBusIterator::new(self)
     }
 
     /// Reads a config for the given params.
@@ -106,8 +106,8 @@ impl Pci {
         unsafe { self.data_port.read() }
     }
 
-    /// Attempts to retrieve a PCI header for the given params.
-    fn get_pci_device(&mut self, bus: u8, device: u8, function: u8) -> Result<PciHeader, PciError> {
+    /// Retrieves a PCI device.
+    fn get_pci_device(&mut self, bus: u8, device: u8, function: u8) -> Result<PciDevice, PciError> {
         let reg0 = self.config_read(bus, device, function, 0x0);
 
         // Check if the device exists.
@@ -119,7 +119,7 @@ impl Pci {
         let reg2 = self.config_read(bus, device, function, 0x8);
         let reg3 = self.config_read(bus, device, function, 0xC);
 
-        Ok(PciHeader {
+        let header = PciHeader {
             vendor_id: (reg0 & 0xFFFF) as u16,
             device_id: (reg0 >> 16 & 0xFFFF) as u16,
             command: (reg1 & 0xFFFF) as u16,
@@ -132,25 +132,96 @@ impl Pci {
             latency_timer: (reg3 >> 8 & 0xFF) as u8,
             header_type: (reg3 >> 16 & 0xFF) as u8,
             bist: (reg3 >> 24 & 0xFF) as u8,
-        })
-    }
+        };
 
-    pub fn convert_device(&self, header: &PciHeader) -> Result<ConvertedDevice, ConversionError> {
-        // TODO: how do we handle devices that have multiple funcs?
-        match header.header_type {
-            0x0 => Ok(ConvertedDevice::General),
-            0x1 => Ok(ConvertedDevice::PciPciBridge),
-            0x2 => Ok(ConvertedDevice::PciCardbusBridge),
-            _ => Err(ConversionError::UnknownHeaderType),
+        match &header.header_type {
+            // General Device.
+            0x0 => {
+                let reg4 = self.config_read(bus, device, function, 0x10);
+                let reg5 = self.config_read(bus, device, function, 0x14);
+                let reg6 = self.config_read(bus, device, function, 0x18);
+                let reg7 = self.config_read(bus, device, function, 0x1C);
+                let reg8 = self.config_read(bus, device, function, 0x20);
+                let reg9 = self.config_read(bus, device, function, 0x24);
+                let reg10 = self.config_read(bus, device, function, 0x28);
+                let reg11 = self.config_read(bus, device, function, 0x2C);
+                let reg12 = self.config_read(bus, device, function, 0x30);
+                let reg13 = self.config_read(bus, device, function, 0x34);
+                let reg15 = self.config_read(bus, device, function, 0x3C);
+
+                Ok(PciDevice::General(GeneralDevice {
+                    header,
+                    bar0: reg4,
+                    bar1: reg5,
+                    bar2: reg6,
+                    bar3: reg7,
+                    bar4: reg8,
+                    bar5: reg9,
+                    cardbus_cis_pointer: reg10,
+                    subsystem_vendor_id: (reg11 & 0xFFFF) as u16,
+                    subsystem_device_id: (reg11 >> 16 & 0xFFFF) as u16,
+                    expansion_rom_address: reg12,
+                    capabilities_pointer: (reg13 & 0xFF) as u8,
+                    interrupt_line: (reg15 & 0xFF) as u8,
+                    interrupt_pin: (reg15 >> 8 & 0xFF) as u8,
+                    min_grant: (reg15 >> 16 & 0xFF) as u8,
+                    max_latency: (reg15 >> 24 & 0xFF) as u8,
+                }))
+            }
+            // Pci to Pci bridge device.
+            0x1 => Ok(PciDevice::PciPciBridge(header)),
+            // Pci to cardbus bridge device.
+            0x2 => Ok(PciDevice::PciCardbusBridge(header)),
+            _ => Ok(PciDevice::Unknown(header)),
         }
     }
+}
+/// PCI iterator
+pub struct PciBusIterator<'a> {
+    pci: &'a mut Pci,
+    bus: u8,
+    device: u8,
+    function: u8,
+}
 
-    pub fn scan_bus(&mut self, bus: u8) {
-        for device in 0..=31 {
-            for func in 0..=7 {
-                if let Ok(device) = self.get_pci_device(bus, device, func) {
-                    serial_println!("{} {:?}", device.has_multiple_fns(), device);
+impl PciBusIterator<'_> {
+    pub fn new(pci: &mut Pci) -> PciBusIterator<'_> {
+        PciBusIterator {
+            bus: 0,
+            device: 0,
+            function: 0,
+            pci,
+        }
+    }
+}
+
+impl<'a> Iterator for PciBusIterator<'a> {
+    type Item = PciDevice;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.function < 8 {
+                match self
+                    .pci
+                    .get_pci_device(self.bus, self.device, self.function)
+                {
+                    Ok(device) => {
+                        self.function += 1;
+                        return Some(device);
+                    }
+                    Err(PciError::NonExistentDevice) => {
+                        self.function += 1;
+                    }
                 }
+            } else if self.device < 32 {
+                self.device += 1;
+                self.function = 0;
+            } else if self.bus < 255 {
+                self.bus += 1;
+                self.device = 0;
+                self.function = 0;
+            } else {
+                return None;
             }
         }
     }

@@ -15,6 +15,7 @@ use core::panic::PanicInfo;
 
 use arch::init_kernel;
 use display::get_display;
+use pci::{get_pci, PciDevice};
 use x86_64::instructions::hlt;
 
 use crate::display::Color;
@@ -33,6 +34,12 @@ pub extern "C" fn _start() -> ! {
             display.draw_pixel(x, y, Color::new(20, 223, 229));
         }
     }
+
+    get_pci().bus_iterator().for_each(|device| {
+        if let PciDevice::General(device) = device {
+            serial_println!("{:?}", device);
+        }
+    });
 
     loop {
         hlt();

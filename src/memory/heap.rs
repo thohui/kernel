@@ -27,7 +27,6 @@ pub fn init_heap(
 
     for page in page_range {
         let frame = frame_allocator.allocate_frame().unwrap();
-        serial_println!("allocated frame at: {:?}", frame.start_address());
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe {
             mapper
