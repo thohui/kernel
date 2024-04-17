@@ -21,46 +21,77 @@ pub fn init_pci() {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// Pci header.
 pub struct PciHeader {
+    /// Vendor ID.
     vendor_id: u16,
+    /// Device ID.
     device_id: u16,
+    ///Provides control over a device's ability to generate and respond to PCI cycles. Where the only functionality guaranteed to be supported by all devices is, when a 0 is written to this register, the device is disconnected from the PCI bus for all accesses except Configuration Space access
     command: u16,
+    /// A register used to record status information for PCI bus related events
     status: u16,
-    revision: u8,
+    ///Specifies a revision identifier for a particular device. Where valid IDs are allocated by the vendor
+    revision_id: u8,
+    /// Prog IF(Programming Interface Byte): A read-only register that specifies a register-level programming interface the device has, if it has any at all.
     prog_if: u8,
+    /// A read-only register that specifies the specific function the device performs
     subclass: u8,
+    /// A read-only register that specifies the type of function the device performs
     class_code: u8,
+    /// Specifies the system cache line size in 32-bit units. A device can limit the number of cacheline sizes it can support, if a unsupported value is written to this field, the device will behave as if a value of 0 was written.
     cache_line_size: u8,
+    /// Specifies the latency timer in units of PCI bus clocks
     latency_timer: u8,
+    /// Header Type.
     header_type: u8,
+    /// Built in self test.
     bist: u8,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// PCI device
 pub enum PciDevice {
+    /// General device.
     General(GeneralDevice),
+    /// PCI To PCI bridge device.
     PciPciBridge(PciHeader),
+    /// PCI to card bus bridge device.
     PciCardbusBridge(PciHeader),
+    /// Unknown device.
     Unknown(PciHeader),
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// General PCI device.
 pub struct GeneralDevice {
     pub header: PciHeader,
+    /// Base address 0
     pub bar0: u32,
+    /// Base address 1
     pub bar1: u32,
+    /// Base address 2
     pub bar2: u32,
+    /// Base address 3
     pub bar3: u32,
+    /// Base address 4
     pub bar4: u32,
+    /// Base address 5
     pub bar5: u32,
+    /// Points to the Card Information Structure and is used by devices that share silicon between CardBus and PCI
     pub cardbus_cis_pointer: u32,
+    ///Sub system vendor id.
     pub subsystem_vendor_id: u16,
+    /// Sub system device id.
     pub subsystem_device_id: u16,
+    /// Expansion rom address.
     pub expansion_rom_address: u32,
+    /// Points (offset) to a linked list of new capabilities implemented by the device. Used if bit 4 of the status register is set.
     pub capabilities_pointer: u8,
+    /// Specifies which input of the system interrupt controllers the device's interrupt pin is connected to and is implemented by any device that makes use of an interrupt pin
     pub interrupt_line: u8,
+    /// Specifies which interrupt pin the device uses. Where a value of 0x1 is INTA#, 0x2 is INTB#, 0x3 is INTC#, 0x4 is INTD#, and 0x0 means the device does not use an interrupt pin
     pub interrupt_pin: u8,
+    /// A read-only register that specifies the burst period length, in 1/4 microsecond units, that the device needs (assuming a 33 MHz clock rate)
     pub min_grant: u8,
+    /// A read-only register that specifies how often the device needs access to the PCI bus (in 1/4 microsecond units)
     pub max_latency: u8,
 }
 
@@ -124,7 +155,7 @@ impl Pci {
             device_id: (reg0 >> 16 & 0xFFFF) as u16,
             command: (reg1 & 0xFFFF) as u16,
             status: (reg1 >> 16 & 0xFFFF) as u16,
-            revision: (reg2 & 0xFF) as u8,
+            revision_id: (reg2 & 0xFF) as u8,
             prog_if: (reg2 >> 8 & 0xFF) as u8,
             subclass: (reg2 >> 16 & 0xFF) as u8,
             class_code: (reg2 >> 24 & 0xFF) as u8,
@@ -176,7 +207,7 @@ impl Pci {
         }
     }
 }
-/// PCI iterator
+/// Iterator that iteraters over every bus, every device and every function.
 pub struct PciBusIterator<'a> {
     pci: &'a mut Pci,
     bus: u8,
