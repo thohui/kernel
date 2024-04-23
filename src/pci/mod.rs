@@ -18,33 +18,33 @@ pub fn init_pci() {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// Pci header.
 pub struct PciHeader {
     /// Vendor ID.
-    vendor_id: u16,
+    pub vendor_id: u16,
     /// Device ID.
-    device_id: u16,
+    pub device_id: u16,
     ///Provides control over a device's ability to generate and respond to PCI cycles. Where the only functionality guaranteed to be supported by all devices is, when a 0 is written to this register, the device is disconnected from the PCI bus for all accesses except Configuration Space access
-    command: u16,
+    pub command: u16,
     /// A register used to record status information for PCI bus related events
-    status: u16,
+    pub status: u16,
     ///Specifies a revision identifier for a particular device. Where valid IDs are allocated by the vendor
-    revision_id: u8,
+    pub revision_id: u8,
     /// Prog IF(Programming Interface Byte): A read-only register that specifies a register-level programming interface the device has, if it has any at all.
-    prog_if: u8,
+    pub prog_if: u8,
     /// A read-only register that specifies the specific function the device performs
-    subclass: u8,
+    pub subclass: u8,
     /// A read-only register that specifies the type of function the device performs
-    class_code: u8,
+    pub class_code: u8,
     /// Specifies the system cache line size in 32-bit units. A device can limit the number of cacheline sizes it can support, if a unsupported value is written to this field, the device will behave as if a value of 0 was written.
-    cache_line_size: u8,
+    pub cache_line_size: u8,
     /// Specifies the latency timer in units of PCI bus clocks
-    latency_timer: u8,
+    pub latency_timer: u8,
     /// Header Type.
-    header_type: u8,
+    pub header_type: u8,
     /// Built in self test.
-    bist: u8,
+    pub bist: u8,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -59,7 +59,19 @@ pub enum PciDevice {
     /// Unknown device.
     Unknown(PciHeader),
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+
+impl PciDevice {
+    pub fn to_string<'a>(&self) -> &'a str {
+        match self {
+            PciDevice::General(_) => "General",
+            PciDevice::PciPciBridge(_) => "PCI to PCI bridge",
+            PciDevice::PciCardbusBridge(_) => "Pci cardbus bridge",
+            PciDevice::Unknown(_) => "Unknown",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// General PCI device.
 pub struct GeneralDevice {
     pub header: PciHeader,
@@ -125,16 +137,27 @@ impl Pci {
         PciBusIterator::new(self)
     }
 
-    /// Reads a config for the given params.
-    pub fn config_read(&mut self, bus: u8, slot: u8, func: u8, offset: u8) -> u32 {
+    /// Selects a config register.
+    fn select_config(&mut self, bus: u8, slot: u8, function: u8, offset: u8) {
+        // Get address.
         let address: u32 = ((bus as u32) << 16)
             | ((slot as u32) << 11)
-            | ((func as u32) << 8)
+            | ((function as u32) << 8)
             | (offset as u32 & 0xFC)
             | (1 << 31);
+        unsafe { self.command_port.write(address) };
+    }
 
-        unsafe { self.command_port.write(address) }
+    /// Reads a config register.
+    pub fn config_read(&mut self, bus: u8, slot: u8, function: u8, offset: u8) -> u32 {
+        self.select_config(bus, slot, function, offset);
         unsafe { self.data_port.read() }
+    }
+
+    /// Writes to a config register.
+    pub fn config_write(&mut self, bus: u8, slot: u8, function: u8, offset: u8, value: u32) {
+        self.select_config(bus, slot, function, offset);
+        unsafe { self.data_port.write(value) };
     }
 
     /// Retrieves a PCI device.
@@ -206,12 +229,18 @@ impl Pci {
             _ => Ok(PciDevice::Unknown(header)),
         }
     }
+
+    pub fn enable_bus_mastering(&mut self, bus: u8, slot: u8, function: u8) {
+        let mut value = self.config_read(bus, slot, function, 0x4);
+        value |= 1 << 2;
+        self.config_write(bus, slot, function, 0x4, value)
+    }
 }
 /// Iterator that iteraters over every bus, every device and every function.
 pub struct PciBusIterator<'a> {
     pci: &'a mut Pci,
     bus: u8,
-    device: u8,
+    slot: u8,
     function: u8,
 }
 
@@ -219,37 +248,53 @@ impl PciBusIterator<'_> {
     pub fn new(pci: &mut Pci) -> PciBusIterator<'_> {
         PciBusIterator {
             bus: 0,
-            device: 0,
+            slot: 0,
             function: 0,
             pci,
         }
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct DeviceAddr(u8, u8, u8);
+pub struct DeviceAddr {
+    pub bus: u8,
+    pub slot: u8,
+    pub function: u8,
+}
+
+impl DeviceAddr {
+    pub fn new(bus: u8, slot: u8, function: u8) -> Self {
+        Self {
+            bus,
+            slot,
+            function,
+        }
+    }
+}
+
 impl<'a> Iterator for PciBusIterator<'a> {
-    type Item = PciDevice;
+    type Item = (DeviceAddr, PciDevice);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.function < 8 {
-                match self
-                    .pci
-                    .get_pci_device(self.bus, self.device, self.function)
-                {
+                match self.pci.get_pci_device(self.bus, self.slot, self.function) {
                     Ok(device) => {
+                        let addr = DeviceAddr::new(self.bus, self.slot, self.function);
                         self.function += 1;
-                        return Some(device);
+                        return Some((addr, device));
                     }
                     Err(PciError::NonExistentDevice) => {
                         self.function += 1;
                     }
                 }
-            } else if self.device < 32 {
-                self.device += 1;
+            } else if self.slot < 32 {
+                self.slot += 1;
                 self.function = 0;
             } else if self.bus < 255 {
                 self.bus += 1;
-                self.device = 0;
+                self.slot = 0;
                 self.function = 0;
             } else {
                 return None;

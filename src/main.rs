@@ -7,6 +7,7 @@ mod arch;
 mod display;
 mod io;
 mod memory;
+mod net;
 mod paging;
 mod pci;
 mod sync;
@@ -15,7 +16,8 @@ use core::panic::PanicInfo;
 
 use arch::init_kernel;
 use display::get_display;
-use pci::{get_pci, PciDevice};
+use net::e1000;
+use pci::get_pci;
 use x86_64::instructions::hlt;
 
 use crate::display::Color;
@@ -35,11 +37,7 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    get_pci().bus_iterator().for_each(|device| {
-        if let PciDevice::General(device) = device {
-            serial_println!("{:?}", device);
-        }
-    });
+    e1000::Driver::init(&mut get_pci()).unwrap();
 
     loop {
         hlt();
