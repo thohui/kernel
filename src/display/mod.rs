@@ -1,9 +1,6 @@
-use core::{
-    ops::{Deref, DerefMut},
-    slice::from_raw_parts_mut,
-};
+use core::slice::from_raw_parts_mut;
 
-use limine::framebuffer::{self, Framebuffer};
+use limine::framebuffer::Framebuffer;
 use spin::Once;
 
 use crate::sync::spinlock::{SpinLock, SpinLockGuard};

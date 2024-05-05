@@ -1,7 +1,7 @@
 use spin::Once;
 use x86_64::{
     registers::control::Cr3,
-    structures::paging::{OffsetPageTable, PageTable},
+    structures::paging::{OffsetPageTable, PageTable, Translate},
     PhysAddr, VirtAddr,
 };
 
@@ -13,7 +13,7 @@ pub fn get_page_mapper<'a>() -> SpinLockGuard<'a, OffsetPageTable<'static>> {
     PAGE_MAPPER.get().unwrap().lock()
 }
 
-static PHYSICAL_OFFSET: Once<u64> = Once::new();
+pub static PHYSICAL_OFFSET: Once<u64> = Once::new();
 
 pub fn init_mapper(offset: u64) {
     PHYSICAL_OFFSET.call_once(|| offset);
@@ -27,6 +27,10 @@ pub fn init_mapper(offset: u64) {
 
 pub fn convert_to_virtual(addr: PhysAddr) -> VirtAddr {
     VirtAddr::new(addr.as_u64() + PHYSICAL_OFFSET.get().unwrap())
+}
+
+pub fn convert_to_physical(addr: VirtAddr) -> Option<PhysAddr> {
+    get_page_mapper().translate_addr(addr)
 }
 
 pub unsafe fn active_page_table() -> &'static mut PageTable {

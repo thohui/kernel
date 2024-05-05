@@ -35,10 +35,10 @@ target/limine/limine-deploy "$KERNEL".iso
 
 # Run the created image with QEMU.
 qemu-system-x86_64 \
-    -machine q35 -cpu qemu64 -M smm=off\
+    -machine q35 -cpu qemu64 -smp 1 -M smm=off\
     -D target/log.txt -d int,guest_errors\
     -serial stdio \
-    -net tap,ifname=tap0,script=no,downscript=no -device e1000 \
+    -netdev user,id=pizza -device e1000,netdev=pizza,id=ck_nic0 -object filter-dump,id=pizza,netdev=pizza,file=qemulog.log \
     "$KERNEL".iso
 
 # Uncomment for debugging
@@ -47,5 +47,5 @@ qemu-system-x86_64 \
 #     -S -s \
 #     -D target/log.txt -d int,guest_errors\
 #     -serial stdio \
-#     -net tap,ifname=tap0,script=no,downscript=no -device e1000 \
+#     -netdev user,id=pizza -device e1000,netdev=pizza,id=ck_nic0 -object filter-dump,id=pizza,netdev=pizza,file=qemulog.log \
 #     "$KERNEL".iso

@@ -1,7 +1,11 @@
 use spin::Once;
-use x86_64::instructions::port::Port;
 
-use crate::sync::spinlock::{SpinLock, SpinLockGuard};
+pub mod bar;
+
+use crate::{
+    io::port::Port,
+    sync::spinlock::{SpinLock, SpinLockGuard},
+};
 
 // Reference: https://wiki.osdev.org/PCI
 
@@ -70,6 +74,8 @@ impl PciDevice {
         }
     }
 }
+
+// TODO: create bar struct for handling BARs.
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// General PCI device.
@@ -231,9 +237,13 @@ impl Pci {
     }
 
     pub fn enable_bus_mastering(&mut self, bus: u8, slot: u8, function: u8) {
-        let mut value = self.config_read(bus, slot, function, 0x4);
-        value |= 1 << 2;
-        self.config_write(bus, slot, function, 0x4, value)
+        let value = self.config_read(bus, slot, function, 0x4);
+        self.config_write(bus, slot, function, 0x4, value | (1 << 2))
+    }
+
+    pub fn enable_mmio(&mut self, bus: u8, slot: u8, function: u8) {
+        let value = self.config_read(bus, slot, function, 0x4);
+        self.config_write(bus, slot, function, 0x4, value | (1 << 1))
     }
 }
 /// Iterator that iteraters over every bus, every device and every function.

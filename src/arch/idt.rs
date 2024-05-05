@@ -15,6 +15,7 @@ lazy_static! {
         idt.general_protection_fault
             .set_handler_fn(general_protection_fault_handler);
         idt.double_fault.set_handler_fn(double_fault_handler);
+        idt[69].set_handler_fn(interrupt_handler);
         idt
     };
 }
@@ -52,4 +53,8 @@ extern "x86-interrupt" fn page_fault_handler(
     loop {
         hlt();
     }
+}
+
+extern "x86-interrupt" fn interrupt_handler(_stack_frame: InterruptStackFrame) {
+    serial_println!("got an interrupt yay")
 }

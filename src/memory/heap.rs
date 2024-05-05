@@ -5,11 +5,11 @@ use x86_64::{
     VirtAddr,
 };
 
-use crate::{serial_println, sync::spinlock::SpinLock};
+use crate::sync::spinlock::SpinLock;
 
 #[global_allocator]
 // TODO: implement a proper allocator that supports deallocating memory.
-static ALLOCATOR: SpinLock<BumpAllocator> = SpinLock::new(BumpAllocator::new_empty());
+pub static ALLOCATOR: SpinLock<BumpAllocator> = SpinLock::new(BumpAllocator::new_empty());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 1000 * 1024;
@@ -39,7 +39,7 @@ pub fn init_heap(
     ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
 }
 
-struct BumpAllocator {
+pub struct BumpAllocator {
     start: *mut u8,
     next: *mut u8,
     size: usize,

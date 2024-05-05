@@ -10,10 +10,12 @@ use limine::{
 };
 
 use crate::{
+    acpi::{get_acpi, init_acpi},
+    apic::init_apic,
     display::init_display,
     memory::heap::init_heap,
     paging::{
-        frame::{get_frame_allocator, init_allocator},
+        frame::{get_frame_allocator, init_allocator, stringify_entry_type},
         mapper::{get_page_mapper, init_mapper},
     },
     pci::init_pci,
@@ -40,8 +42,10 @@ pub extern "C" fn init_kernel() {
         get_frame_allocator().deref_mut(),
     );
 
-    init_pci();
+    unsafe { init_acpi(limine_data.rsdp_address) };
+    unsafe { init_apic(get_acpi().deref_mut()) };
 
+    init_pci();
     init_display(limine_data.framebuffer);
 }
 

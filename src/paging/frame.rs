@@ -1,9 +1,8 @@
-use limine::memory_map::{self, EntryType};
+use limine::memory_map::EntryType;
 use spin::Once;
 use x86_64::{
     structures::paging::{
-        frame::{PhysFrameRange, PhysFrameRangeInclusive},
-        FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB,
+        frame::PhysFrameRangeInclusive, FrameAllocator, FrameDeallocator, PhysFrame, Size4KiB,
     },
     PhysAddr,
 };

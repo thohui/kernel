@@ -2,13 +2,12 @@ use core::fmt::Write;
 
 use lazy_static::lazy_static;
 use uart_16550::SerialPort;
-use x86_64::instructions::{interrupts, port::Port};
+use x86_64::instructions::interrupts;
 
 use crate::sync::spinlock::SpinLock;
 
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
-    use core::fmt::Write;
     interrupts::without_interrupts(|| {
         COM1.lock()
             .write_fmt(args)
