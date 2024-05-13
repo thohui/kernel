@@ -45,6 +45,18 @@ impl<T: PortReadWrite> Port<T> {
     }
 }
 
+impl PortReadWrite for u8 {
+    unsafe fn write_port(port: u16, value: Self) {
+        asm!("out dx, al", in("dx") port, in("al") value, options(nomem, nostack, preserves_flags));
+    }
+
+    unsafe fn read_port(port: u16) -> Self {
+        let value;
+        asm!("in al, dx", out("al") value, in("dx") port, options(nomem, nostack, preserves_flags));
+        value
+    }
+}
+
 impl PortReadWrite for u16 {
     unsafe fn write_port(port: u16, value: Self) {
         asm!("out dx, ax", in("dx") port, in("ax") value, options(nomem, nostack, preserves_flags));

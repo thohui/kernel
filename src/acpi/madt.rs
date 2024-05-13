@@ -6,13 +6,13 @@ use super::AcpiHeader;
 #[derive(Debug)]
 pub struct Madt {
     /// Acpi Header
-    header: AcpiHeader,
+    pub header: AcpiHeader,
 
     /// Local APIC Address
     pub apic_addr: u32,
 
     /// Flags (1 = Dual 8259 Legacy PICs Installed)
-    pub flags: u32,
+    flags: u32,
 
     /// The start of the madt table entries.
     entry_start: (),

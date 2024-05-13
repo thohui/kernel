@@ -28,6 +28,9 @@ pub fn init_mapper(offset: u64) {
 pub fn convert_to_virtual(addr: PhysAddr) -> VirtAddr {
     VirtAddr::new(addr.as_u64() + PHYSICAL_OFFSET.get().unwrap())
 }
+pub fn convert_to_virtual_raw(addr: u64) -> VirtAddr {
+    VirtAddr::new(addr + PHYSICAL_OFFSET.get().unwrap())
+}
 
 pub fn convert_to_physical(addr: VirtAddr) -> Option<PhysAddr> {
     get_page_mapper().translate_addr(addr)

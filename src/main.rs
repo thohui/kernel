@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(exposed_provenance)]
+#![feature(strict_provenance)]
 
 mod acpi;
 mod apic;
@@ -17,10 +18,11 @@ mod sync;
 
 use core::panic::PanicInfo;
 
-use apic::get_apic;
+use acpi::{get_acpi, AcpiTableKind};
+use alloc::string::{String, ToString};
 use arch::init_kernel;
 use display::get_display;
-use net::driver::{e1000::E1000Driver, rtl8139::Rtl8139Driver};
+use net::driver::e1000::{E1000Driver, INTEL_VENDOR};
 use pci::get_pci;
 use x86_64::instructions::hlt;
 
@@ -33,6 +35,8 @@ extern crate alloc;
 pub extern "C" fn _start() -> ! {
     init_kernel();
 
+    E1000Driver::init(&mut get_pci()).expect("Could not initialize e1000 driver");
+
     let mut display = get_display();
 
     for y in 0..display.height {
@@ -40,8 +44,6 @@ pub extern "C" fn _start() -> ! {
             display.draw_pixel(x, y, Color::new(20, 223, 229));
         }
     }
-
-    E1000Driver::init(&mut get_pci()).unwrap();
 
     loop {
         hlt();

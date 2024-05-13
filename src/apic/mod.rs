@@ -1,4 +1,4 @@
-use core::ops::Add;
+use core::{cell::UnsafeCell, ops::Add};
 
 use alloc::vec::Vec;
 use spin::Once;
@@ -10,11 +10,8 @@ use crate::{
         Acpi, AcpiTableKind,
     },
     paging::mapper::convert_to_virtual,
-    serial_println,
     sync::spinlock::{SpinLock, SpinLockGuard},
 };
-
-// TODO: Refactor this when we support multiprocessing.
 
 // MSR apic base Register
 const IA32_APIC_BASE_MSR: u32 = 0x1B;
@@ -94,14 +91,15 @@ const LAPIC_TCCR: usize = 0x0390;
 /// Local APIC Divide Configuration Register (for Timer)
 const LAPIC_TDCR: usize = 0x03e0;
 
-pub struct Apic<'a> {
+pub struct Apic {
     local_apic_address: VirtAddr,
-    local_apics: Vec<&'a LocalApicEntry>,
 }
 
+// TODO: this needs doesn't need to be inside a spinlock as it is local to the core.
+// In the future, when we support multiprocessing, we can perhaps impl a core local struct that contains the local apic too.
 static APIC: Once<SpinLock<Apic>> = Once::new();
 
-pub fn get_apic<'a>() -> SpinLockGuard<'a, Apic<'static>> {
+pub fn get_apic<'a>() -> SpinLockGuard<'a, Apic> {
     APIC.get().unwrap().lock()
 }
 
@@ -109,7 +107,7 @@ pub unsafe fn init_apic(acpi: &Acpi) {
     let mut local_apics: Vec<&'static LocalApicEntry> = Vec::new();
     let mut local_apic_address: u32 = 0;
 
-    for table in acpi.iter() {
+    for table in acpi.rsdt.iter() {
         if let AcpiTableKind::Madt(madt) = table {
             local_apic_address = madt.apic_addr;
             for madt_entry in madt.iter() {
@@ -126,7 +124,6 @@ pub unsafe fn init_apic(acpi: &Acpi) {
 
         let mut inner = Apic {
             local_apic_address: virtual_apic_addr,
-            local_apics,
         };
 
         inner.enable_local_apic();
@@ -135,7 +132,7 @@ pub unsafe fn init_apic(acpi: &Acpi) {
     });
 }
 
-impl<'a> Apic<'a> {
+impl Apic {
     pub unsafe fn write_register(&mut self, offset: usize, value: u32) {
         self.local_apic_address
             .add(offset as u64)
@@ -151,15 +148,10 @@ impl<'a> Apic<'a> {
 
     // Enable local apic
     pub unsafe fn enable_local_apic(&mut self) {
+        // Clear Task priority register.
         self.write_register(LAPIC_TPR, 0);
 
         // Configure Spurious Interrupt Vector Register
         self.write_register(LAPIC_SVR, 0x100 | 0xff);
-
-        serial_println!("lapic_id: {:?}", self.read_register(LAPIC_ID >> 24));
-
-        for local_apic in self.local_apics.iter() {
-            serial_println!("{:?}", local_apic);
-        }
     }
 }

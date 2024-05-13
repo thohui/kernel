@@ -10,12 +10,12 @@ use limine::{
 };
 
 use crate::{
-    acpi::{get_acpi, init_acpi},
+    acpi::{get_acpi, init_acpi, lai::init_lai},
     apic::init_apic,
     display::init_display,
     memory::heap::init_heap,
     paging::{
-        frame::{get_frame_allocator, init_allocator, stringify_entry_type},
+        frame::{get_frame_allocator, init_allocator},
         mapper::{get_page_mapper, init_mapper},
     },
     pci::init_pci,
@@ -42,10 +42,11 @@ pub extern "C" fn init_kernel() {
         get_frame_allocator().deref_mut(),
     );
 
+    init_pci();
     unsafe { init_acpi(limine_data.rsdp_address) };
     unsafe { init_apic(get_acpi().deref_mut()) };
+    init_lai();
 
-    init_pci();
     init_display(limine_data.framebuffer);
 }
 
@@ -54,7 +55,7 @@ static BOOTLOADER_INFO: BootloaderInfoRequest = BootloaderInfoRequest::new();
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
 static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
 static MEMORY_MAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
-static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
+pub static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
 
 struct LimineData<'a> {
     physical_offset: usize,

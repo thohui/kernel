@@ -46,7 +46,7 @@ extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
 ) {
-    serial_println!("PAGE FAULT:");
+    serial_println!("PAGE FAULT: {:?}", stack_frame);
     serial_println!("Accessed Address: {:?}", Cr2::read());
     serial_println!("Error Code: {:?}", error_code);
     serial_println!("{:#?}", stack_frame);

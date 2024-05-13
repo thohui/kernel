@@ -1,4 +1,7 @@
-use core::{alloc::GlobalAlloc, ptr};
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    ptr,
+};
 
 use x86_64::{
     structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB},
@@ -8,8 +11,7 @@ use x86_64::{
 use crate::sync::spinlock::SpinLock;
 
 #[global_allocator]
-// TODO: implement a proper allocator that supports deallocating memory.
-pub static ALLOCATOR: SpinLock<BumpAllocator> = SpinLock::new(BumpAllocator::new_empty());
+pub static GLOBAL_ALLOCATOR: SpinLock<BumpAllocator> = SpinLock::new(BumpAllocator::new_empty());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 1000 * 1024;
@@ -36,7 +38,9 @@ pub fn init_heap(
         };
     }
 
-    ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+    GLOBAL_ALLOCATOR
+        .lock()
+        .init(HEAP_START as *mut _, HEAP_SIZE)
 }
 
 pub struct BumpAllocator {
@@ -76,4 +80,25 @@ unsafe impl GlobalAlloc for SpinLock<BumpAllocator> {
         aligned_address as *mut u8
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {}
+
+    unsafe fn realloc(
+        &self,
+        ptr: *mut u8,
+        layout: core::alloc::Layout,
+        new_size: usize,
+    ) -> *mut u8 {
+        let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
+
+        let new_ptr = self.alloc(new_layout);
+
+        if !new_ptr.is_null() && !ptr.is_null() {
+            core::ptr::copy_nonoverlapping(
+                ptr,
+                self.alloc(layout),
+                core::cmp::min(layout.size(), new_size),
+            );
+            self.dealloc(ptr, layout);
+        }
+        new_ptr
+    }
 }

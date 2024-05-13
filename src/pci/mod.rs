@@ -1,4 +1,11 @@
+use core::{
+    mem,
+    ptr::{self, addr_of},
+};
+
+use alloc::vec::Vec;
 use spin::Once;
+use x86_64::PhysAddr;
 
 pub mod bar;
 
@@ -111,6 +118,33 @@ pub struct GeneralDevice {
     pub min_grant: u8,
     /// A read-only register that specifies how often the device needs access to the PCI bus (in 1/4 microsecond units)
     pub max_latency: u8,
+}
+
+#[derive(Debug)]
+pub struct MsiCapabilities {
+    /// Capability ID
+    pub capability_id: u8,
+
+    /// Next Pointer
+    pub next_pointer: u8,
+
+    /// Message Control
+    pub message_control: u8,
+
+    // Message address (Low)
+    pub message_addr_low: u32,
+
+    // Message address (High)
+    pub message_addr_high: u32,
+
+    // Mesage Data
+    pub message_data: u8,
+
+    // Mask
+    pub mask: u32,
+
+    // Pending
+    pub pending: u32,
 }
 
 /// Address used for selecting a pci device.
@@ -245,8 +279,21 @@ impl Pci {
         let value = self.config_read(bus, slot, function, 0x4);
         self.config_write(bus, slot, function, 0x4, value | (1 << 1))
     }
+
+    /// Returns an iterator over the pci capabilities.
+    /// It is up to the function caller to make sure that the has capabilities in the first place (by checking the status register).
+    pub unsafe fn device_capabilities(
+        &mut self,
+        bus: u8,
+        slot: u8,
+        function: u8,
+    ) -> PciCapabilityIterator<'_> {
+        let cap_ptr = (self.config_read(bus, slot, function, 0x34) & 0xFF) as u8;
+        PciCapabilityIterator::new(self, bus, slot, function, cap_ptr, 16)
+    }
 }
-/// Iterator that iteraters over every bus, every device and every function.
+
+/// Iterator that iterates over every bus, every device and every function.
 pub struct PciBusIterator<'a> {
     pci: &'a mut Pci,
     bus: u8,
@@ -310,5 +357,86 @@ impl<'a> Iterator for PciBusIterator<'a> {
                 return None;
             }
         }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum PciCapability {
+    Msi,
+    Unknown,
+}
+
+/// Iterator that iterates over the PCI caps.
+pub struct PciCapabilityIterator<'a> {
+    // Pci
+    pci: &'a mut Pci,
+
+    /// The bus id of the PCI device.
+    bus: u8,
+
+    /// The slot of the PCI device.
+    slot: u8,
+
+    /// The function of the PCI device.
+    function: u8,
+
+    /// The pointer to the next capability.
+    ptr: u8,
+
+    // The number of attempts (iterations) left.
+    attempts_left: u8,
+}
+
+impl PciCapabilityIterator<'_> {
+    pub fn new<'a>(
+        pci: &'a mut Pci,
+        bus: u8,
+        slot: u8,
+        function: u8,
+        capabilities_ptr: u8,
+        max_attempts: u8,
+    ) -> PciCapabilityIterator<'a> {
+        PciCapabilityIterator {
+            pci,
+            bus,
+            slot,
+            function,
+            attempts_left: max_attempts,
+            ptr: capabilities_ptr,
+        }
+    }
+}
+
+impl<'a> Iterator for PciCapabilityIterator<'a> {
+    type Item = (PciCapability, u8);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Check if we have reached the max amount of attempts.
+        if self.attempts_left == 0 {
+            return None;
+        }
+
+        // Clear reserved bits.
+        let ptr = self.ptr & !0x3;
+
+        // Read register.
+        let reg = self
+            .pci
+            .config_read(self.bus, self.slot, self.function, ptr);
+
+        // Extract capability ID.
+        let capability_id = (reg & 0xFF) as u8;
+
+        let capability: PciCapability = match capability_id {
+            0x5 => PciCapability::Msi,
+            _ => PciCapability::Unknown,
+        };
+
+        // Setup next pointer.
+        self.ptr = (reg >> 8 & 0xFF) as u8;
+
+        self.attempts_left -= 1;
+
+        Some((capability, ptr))
     }
 }
