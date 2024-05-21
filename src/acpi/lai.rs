@@ -8,6 +8,7 @@ use alloc::{
 
 use crate::{
     io::port::PortReadWrite, paging::mapper::convert_to_virtual_raw, pci::get_pci, serial_println,
+    utils::sleep_ms,
 };
 
 use super::{get_acpi, AcpiTableKind};
@@ -15,7 +16,6 @@ struct LaiHost;
 
 impl lai::Host for LaiHost {
     fn scan(&self, _signature: &str, _index: usize) -> *const u8 {
-        serial_println!("scan: {}", _signature);
         if _signature == "DSDT" {
             let fadt = get_acpi()
                 .rsdt
@@ -29,18 +29,17 @@ impl lai::Host for LaiHost {
                 .unwrap();
             convert_to_virtual_raw(fadt.dsdt.into()).as_ptr::<u8>()
         } else {
-            let result = get_acpi()
+            get_acpi()
                 .rsdt
                 .raw_iter()
                 .find(|e| e.0.signature == _signature.as_bytes())
                 .map(|e| e.0 as *const _ as *const u8)
-                .unwrap_or(ptr::null_mut::<u8>());
-            result
+                .unwrap_or(ptr::null_mut::<u8>())
         }
     }
 
-    fn sleep(&self, _ms: u64) {
-        // unimplemented!()
+    fn sleep(&self, ms: u64) {
+        unsafe { sleep_ms(ms) }
     }
 
     fn outb(&self, _port: u16, _value: u8) {

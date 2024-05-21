@@ -15,14 +15,13 @@ mod paging;
 mod pci;
 mod pic;
 mod sync;
+mod utils;
 
 use core::panic::PanicInfo;
 
-use acpi::{get_acpi, AcpiTableKind};
-use alloc::string::{String, ToString};
 use arch::init_kernel;
 use display::get_display;
-use net::driver::e1000::{E1000Driver, INTEL_VENDOR};
+use net::driver::e1000::E1000Driver;
 use pci::get_pci;
 use x86_64::instructions::hlt;
 
